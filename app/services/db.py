@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 from tortoise import Tortoise
-from dotenv import load_dotenv  # Добавьте эту строку
+from dotenv import load_dotenv
 from os import getenv
 
 load_dotenv()
