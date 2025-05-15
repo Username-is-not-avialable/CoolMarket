@@ -7,7 +7,7 @@
 
 ### 1. Установка зависимостей
 ```bash
-git clone https://github.com/ваш-репозиторий/market.git
+git clone https://github.com/Username-is-not-avialable/CoolMarket.git
 cd market
 
 # Создание виртуального окружения (Linux/macOS)
