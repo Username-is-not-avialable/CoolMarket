@@ -37,3 +37,9 @@ sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE market TO market_user
 ```bash
 uvicorn main:app --reload
 ```
+
+### После запуска будут доступны:
+
+- Интерактивная документация: /docs
+
+- Альтернативная документация: /redoc
