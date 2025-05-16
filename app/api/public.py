@@ -1,6 +1,6 @@
 from fastapi import APIRouter
-from app.models import User
-from app.schemas import UserCreate
+from app.models.user import User
+from app.schemas.user import UserCreate
 
 router = APIRouter(prefix="/api/v1/public", tags=["Public"])
 
