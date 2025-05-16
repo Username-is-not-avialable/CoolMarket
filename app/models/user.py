@@ -1,10 +1,11 @@
 from tortoise.models import Model
 from tortoise import fields
+import uuid
 
 class User(Model):
     id = fields.IntField(pk=True)
     name = fields.CharField(max_length=255)
-    api_key = fields.CharField(max_length=36, unique=True)
+    api_key = fields.CharField(max_length=36, unique=True, default=lambda: uuid.uuid4())
     role = fields.CharField(max_length=20, default="user")  # user/admin
 
     class Meta:
