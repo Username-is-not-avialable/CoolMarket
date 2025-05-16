@@ -11,12 +11,6 @@ class UserCreate(BaseModel):
             raise ValueError("Никнейм слишком короткий")
         return v
 
-class UserResponse(BaseModel):
-    id: int
-    name: str
-    api_key: str
-
-# Другие схемы (для ордеров, инструментов и т.д.)
 class InstrumentCreate(BaseModel):
     ticker: str
     name: str
