@@ -4,7 +4,7 @@ from app.models.user import User
 async def get_user_by_token(
     authorization: str = Header(..., alias="Authorization")
 ) -> User:
-    """Зависимость для проверки токена и получения пользователя."""
+    """Проверка токена и получение объекта пользователя."""
     if not authorization.startswith("TOKEN "):
         raise HTTPException(
             status_code=401,

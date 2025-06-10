@@ -28,3 +28,4 @@ async def lifespan(app: 'FastAPI'):
     await init_db()
     yield
     await close_db()
+
