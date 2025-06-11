@@ -14,7 +14,8 @@ async def init_db():
             "models": [
                 "app.models.user",
                 "app.models.order",
-                "app.models.instrument"
+                "app.models.instrument",
+                "app.models.balance"
             ]
         }
     )
