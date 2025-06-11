@@ -1,155 +1,130 @@
 from fastapi import APIRouter, Header, HTTPException
-from app.services.auth import get_user_by_token
-from app.models.order import Order
-from app.models.instrument import Instrument
-from app.schemas.order import (
-    OrderCreate, OrderResponse, OrderListResponse, 
-    OrderListItem, OrderBody, OrderDetailResponse,
-    OrderDeleteResponse
-)
-import uuid
+from typing import Optional
+from uuid import UUID
 from datetime import datetime
 
-router = APIRouter(prefix="/api/v1", tags=["Order"])
+from app.models.order import Order
+from app.models.instrument import Instrument
+from app.models.user import User
+from app.schemas.order import (
+    OrderCreateRequest,
+    OrderCreateResponse,
+    OrderDetailResponse,
+    OrderListResponse,
+    OrderDeleteResponse,
+    OrderBodyResponse
+)
 
-@router.post("/order", response_model=OrderResponse)
+router = APIRouter()
+
+@router.post("/order", response_model=OrderCreateResponse)
 async def create_order(
-    order_data: OrderCreate,
-    authorization: str = Header(..., alias="Authorization")
+    order: OrderCreateRequest,
+    authorization: str = Header(...)
 ):
-    # Получаем пользователя по токену
-    user = await get_user_by_token(authorization)
-    
-    # Проверяем существование инструмента
-    instrument = await Instrument.get_or_none(ticker=order_data.ticker)
+    """Create a new order"""
+    # Get user from token
+    user = await User.get_by_token(authorization)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    # Check if instrument exists and is active
+    instrument = await Instrument.get_by_ticker(order.ticker)
     if not instrument:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Instrument with ticker {order_data.ticker} not found"
-        )
+        raise HTTPException(status_code=404, detail="Instrument not found")
+    if instrument.status != "ACTIVE":
+        raise HTTPException(status_code=400, detail="Instrument is not active")
+
+    # Create order
+    order_data = {
+        "user_id": str(user.id),
+        "status": "NEW",
+        "body": {
+            "direction": order.direction,
+            "ticker": order.ticker,
+            "qty": order.qty,
+            "price": order.price
+        }
+    }
+    new_order = await Order.create(**order_data)
     
-    # Проверяем, что инструмент активен
-    if not instrument.is_active:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Instrument {order_data.ticker} is not active"
-        )
-    
-    # Создаем ордер
-    order = await Order.create(
-        id=uuid.uuid4(),
-        user=user,
-        instrument=instrument,
-        direction=order_data.direction,
-        price=order_data.price,
-        quantity=order_data.qty,
-        status="NEW"
-    )
-    
-    return OrderResponse(
-        success=True,
-        order_id=str(order.id)
-    )
+    return OrderCreateResponse(order_id=str(new_order.id))
 
 @router.get("/order", response_model=OrderListResponse)
-async def get_orders(
-    authorization: str = Header(..., alias="Authorization")
-):
-    # Получаем пользователя по токену
-    user = await get_user_by_token(authorization)
+async def get_orders(authorization: str = Header(...)):
+    """Get all orders for the authenticated user"""
+    # Get user from token
+    user = await User.get_by_token(authorization)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    # Get all orders for user
+    orders = await Order.find({"user_id": str(user.id)}).to_list()
     
-    # Получаем все ордера пользователя
-    orders = await Order.filter(user=user).prefetch_related('instrument')
-    
-    # Преобразуем ордера в нужный формат
+    # Format orders for response
     order_list = []
     for order in orders:
         order_list.append(
-            OrderListItem(
+            OrderDetailResponse(
                 id=str(order.id),
                 status=order.status,
-                user_id=str(user.id),
+                user_id=order.user_id,
                 timestamp=order.created_at,
-                body=OrderBody(
-                    direction=order.direction,
-                    ticker=order.instrument.ticker,
-                    qty=order.quantity,
-                    price=order.price
-                ),
-                filled=0  # TODO: Добавить логику подсчета исполненных ордеров
+                body=OrderBodyResponse(**order.body),
+                filled=order.filled
             )
         )
     
-    return OrderListResponse(__root__=order_list)
+    return OrderListResponse(root=order_list)
 
 @router.get("/order/{order_id}", response_model=OrderDetailResponse)
-async def get_order(
-    order_id: uuid.UUID,
-    authorization: str = Header(..., alias="Authorization")
-):
-    # Получаем пользователя по токену
-    user = await get_user_by_token(authorization)
-    
-    # Получаем ордер
-    order = await Order.get_or_none(id=order_id).prefetch_related('instrument')
+async def get_order(order_id: UUID, authorization: str = Header(...)):
+    """Get information about a specific order"""
+    # Get user from token
+    user = await User.get_by_token(authorization)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    # Get order
+    order = await Order.get(order_id)
     if not order:
-        raise HTTPException(
-            status_code=404,
-            detail="Order not found"
-        )
+        raise HTTPException(status_code=404, detail="Order not found")
     
-    # Проверяем, что ордер принадлежит пользователю
-    if order.user_id != user.id:
-        raise HTTPException(
-            status_code=403,
-            detail="Access denied"
-        )
+    # Check if order belongs to user
+    if order.user_id != str(user.id):
+        raise HTTPException(status_code=403, detail="Access denied")
     
     return OrderDetailResponse(
         id=str(order.id),
         status=order.status,
-        user_id=str(user.id),
+        user_id=order.user_id,
         timestamp=order.created_at,
-        body=OrderBody(
-            direction=order.direction,
-            ticker=order.instrument.ticker,
-            qty=order.quantity,
-            price=order.price
-        ),
-        filled=0  # TODO: Добавить логику подсчета исполненных ордеров
+        body=OrderBodyResponse(**order.body),
+        filled=order.filled
     )
 
 @router.delete("/order/{order_id}", response_model=OrderDeleteResponse)
-async def delete_order(
-    order_id: uuid.UUID,
-    authorization: str = Header(..., alias="Authorization")
-):
-    # Получаем пользователя по токену
-    user = await get_user_by_token(authorization)
-    
-    # Получаем ордер
-    order = await Order.get_or_none(id=order_id)
+async def delete_order(order_id: UUID, authorization: str = Header(...)):
+    """Delete an order"""
+    # Get user from token
+    user = await User.get_by_token(authorization)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    # Get order
+    order = await Order.get(order_id)
     if not order:
-        raise HTTPException(
-            status_code=404,
-            detail="Order not found"
-        )
+        raise HTTPException(status_code=404, detail="Order not found")
     
-    # Проверяем, что ордер принадлежит пользователю
-    if order.user_id != user.id:
-        raise HTTPException(
-            status_code=403,
-            detail="Access denied"
-        )
+    # Check if order belongs to user
+    if order.user_id != str(user.id):
+        raise HTTPException(status_code=403, detail="Access denied")
     
-    # Проверяем, что ордер можно удалить (только NEW)
+    # Check if order can be deleted (only NEW orders can be deleted)
     if order.status != "NEW":
-        raise HTTPException(
-            status_code=400,
-            detail="Can only delete orders with NEW status"
-        )
+        raise HTTPException(status_code=400, detail="Order cannot be deleted")
     
-    # Удаляем ордер
+    # Delete order
     await order.delete()
     
-    return OrderDeleteResponse(success=True) 
+    return OrderDeleteResponse() 

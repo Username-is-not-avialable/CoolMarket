@@ -1,5 +1,6 @@
 from tortoise.models import Model
 from tortoise import fields
+from datetime import datetime
 
 class Order(Model):
     id = fields.UUIDField(pk=True)
@@ -9,6 +10,7 @@ class Order(Model):
     price = fields.IntField(null=True)  # NULL для рыночных ордеров
     quantity = fields.IntField()
     status = fields.CharField(max_length=20, default="NEW")
+    created_at = fields.DatetimeField(auto_now_add=True)
 
     class Meta:
         table = "orders"

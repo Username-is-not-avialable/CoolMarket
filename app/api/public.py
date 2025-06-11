@@ -3,7 +3,7 @@ from app.models.user import User
 from app.models.instrument import Instrument
 from app.schemas.user import UserCreate
 
-router = APIRouter(prefix="/api/v1/public", tags=["Public"])
+router = APIRouter()
 
 @router.post("/register")
 async def register(user_data: UserCreate):

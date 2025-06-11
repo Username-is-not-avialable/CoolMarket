@@ -7,7 +7,7 @@ from uuid import UUID
 from app.models.instrument import Instrument
 from app.schemas.instrument import InstrumentCreate, InstrumentResponse
 
-router = APIRouter(prefix="/api/v1/admin", tags=["Admin"])
+router = APIRouter()
 
 async def verify_admin(authorization: Optional[str] = Header(None)):
     if not authorization:
