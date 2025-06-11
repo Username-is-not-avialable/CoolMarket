@@ -2,8 +2,9 @@ from fastapi import APIRouter, Header, HTTPException
 from app.services.auth import get_user_by_token
 from app.models.order import Order
 from app.models.instrument import Instrument
-from app.schemas.order import OrderCreate, OrderResponse
+from app.schemas.order import OrderCreate, OrderResponse, OrderListResponse, OrderListItem, OrderBody
 import uuid
+from datetime import datetime
 
 router = APIRouter(prefix="/api/v1", tags=["Order"])
 
@@ -44,4 +45,35 @@ async def create_order(
     return OrderResponse(
         success=True,
         order_id=str(order.id)
-    ) 
+    )
+
+@router.get("/order", response_model=OrderListResponse)
+async def get_orders(
+    authorization: str = Header(..., alias="Authorization")
+):
+    # Получаем пользователя по токену
+    user = await get_user_by_token(authorization)
+    
+    # Получаем все ордера пользователя
+    orders = await Order.filter(user=user).prefetch_related('instrument')
+    
+    # Преобразуем ордера в нужный формат
+    order_list = []
+    for order in orders:
+        order_list.append(
+            OrderListItem(
+                id=str(order.id),
+                status=order.status,
+                user_id=str(user.id),
+                timestamp=order.created_at,
+                body=OrderBody(
+                    direction=order.direction,
+                    ticker=order.instrument.ticker,
+                    qty=order.quantity,
+                    price=order.price
+                ),
+                filled=0  # TODO: Добавить логику подсчета исполненных ордеров
+            )
+        )
+    
+    return OrderListResponse(__root__=order_list) 

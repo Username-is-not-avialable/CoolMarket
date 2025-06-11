@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional
+from typing import Optional, List
+from datetime import datetime
 
 class OrderCreate(BaseModel):
     direction: str = Field(..., description="Direction of the order (BUY or SELL)")
@@ -15,4 +16,21 @@ class OrderCreate(BaseModel):
 
 class OrderResponse(BaseModel):
     success: bool = True
-    order_id: str 
+    order_id: str
+
+class OrderBody(BaseModel):
+    direction: str
+    ticker: str
+    qty: int
+    price: Optional[int] = None
+
+class OrderListItem(BaseModel):
+    id: str
+    status: str
+    user_id: str
+    timestamp: datetime
+    body: OrderBody
+    filled: int = 0
+
+class OrderListResponse(BaseModel):
+    __root__: List[OrderListItem] 
