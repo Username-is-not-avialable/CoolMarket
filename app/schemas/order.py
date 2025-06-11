@@ -42,4 +42,7 @@ class OrderDetailResponse(BaseModel):
     user_id: str
     timestamp: datetime
     body: OrderBody
-    filled: int = 0 
+    filled: int = 0
+
+class OrderDeleteResponse(BaseModel):
+    success: bool = True 

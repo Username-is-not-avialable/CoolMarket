@@ -4,7 +4,8 @@ from app.models.order import Order
 from app.models.instrument import Instrument
 from app.schemas.order import (
     OrderCreate, OrderResponse, OrderListResponse, 
-    OrderListItem, OrderBody, OrderDetailResponse
+    OrderListItem, OrderBody, OrderDetailResponse,
+    OrderDeleteResponse
 )
 import uuid
 from datetime import datetime
@@ -116,4 +117,39 @@ async def get_order(
             price=order.price
         ),
         filled=0  # TODO: Добавить логику подсчета исполненных ордеров
-    ) 
+    )
+
+@router.delete("/order/{order_id}", response_model=OrderDeleteResponse)
+async def delete_order(
+    order_id: uuid.UUID,
+    authorization: str = Header(..., alias="Authorization")
+):
+    # Получаем пользователя по токену
+    user = await get_user_by_token(authorization)
+    
+    # Получаем ордер
+    order = await Order.get_or_none(id=order_id)
+    if not order:
+        raise HTTPException(
+            status_code=404,
+            detail="Order not found"
+        )
+    
+    # Проверяем, что ордер принадлежит пользователю
+    if order.user_id != user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="Access denied"
+        )
+    
+    # Проверяем, что ордер можно удалить (только NEW)
+    if order.status != "NEW":
+        raise HTTPException(
+            status_code=400,
+            detail="Can only delete orders with NEW status"
+        )
+    
+    # Удаляем ордер
+    await order.delete()
+    
+    return OrderDeleteResponse(success=True) 
