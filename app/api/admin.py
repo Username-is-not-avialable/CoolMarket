@@ -1,6 +1,6 @@
-from fastapi import APIRouter, Header, HTTPException, Depends
-from typing import Optional
+from fastapi import APIRouter, Header, HTTPException
 from app.models.user import User
+from app.schemas.balance import Body_deposit_api_v1_admin_balance_deposit_post
 from app.services.auth import get_user_by_token
 from uuid import UUID
 from app.models.instrument import Instrument
@@ -25,7 +25,7 @@ async def delete_user(
 ):
     # Проверяем токен и получаем пользователя
     admin_user = await get_user_by_token(authorization)
-    
+
     # Проверяем, что пользователь - администратор
     if admin_user.role != "ADMIN":
         raise HTTPException(
@@ -50,21 +50,3 @@ async def delete_user(
     authorization: str = Header(..., alias="Authorization"),
 ):
     print("passed")
-
-@router.post("/instrument", response_model=InstrumentResponse)
-async def create_instrument(
-    instrument_data: InstrumentCreate,
-    _: User = Depends(verify_admin)
-):
-    # Check if instrument with this ticker already exists
-    existing = await Instrument.get_or_none(ticker=instrument_data.ticker)
-    if existing:
-        raise HTTPException(status_code=400, detail="Instrument with this ticker already exists")
-    
-    # Create new instrument
-    await Instrument.create(
-        ticker=instrument_data.ticker,
-        name=instrument_data.name
-    )
-    
-    return InstrumentResponse(success=True)
