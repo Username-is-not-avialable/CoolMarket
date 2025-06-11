@@ -1,5 +1,8 @@
 from fastapi import APIRouter, Header, HTTPException
+from app.models.balance import Balance
+from app.models.instrument import Instrument
 from app.models.user import User
+from app.schemas.balance import Body_deposit_api_v1_admin_balance_deposit_post
 from app.services.auth import get_user_by_token
 from uuid import UUID
 
@@ -12,7 +15,7 @@ async def delete_user(
 ):
     # Проверяем токен и получаем пользователя
     admin_user = await get_user_by_token(authorization)
-    
+
     # Проверяем, что пользователь - администратор
     if admin_user.role != "ADMIN":
         raise HTTPException(
@@ -31,9 +34,59 @@ async def delete_user(
     
     return {"success": True}
 
-@router.delete("/user/")
-async def delete_user(
-    user_id: str,
-    authorization: str = Header(..., alias="Authorization"),
+@router.post("/balance/deposit")
+async def deposit_balance(
+    deposit_data: Body_deposit_api_v1_admin_balance_deposit_post,
+    authorization: str = Header(None, alias="Authorization"),
 ):
-    print("passed")
+    """
+    Пополнение баланса пользователя (только для администраторов)
+    
+    Требуемые параметры:
+    - user_id: UUID пользователя
+    - ticker: Тикер инструмента (например, "MEMCOIN")
+    - amount: Сумма пополнения (целое число > 0)
+    """
+    # Проверяем авторизацию и права администратора
+    admin_user = await get_user_by_token(authorization)
+    if admin_user.role != "ADMIN":
+        raise HTTPException(
+            status_code=403,
+            detail="Only admin users can perform this action"
+        )
+
+    # Проверяем существование пользователя
+    user = await User.get_or_none(id=deposit_data.user_id)
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail="User not found"
+        )
+
+    # Проверяем существование инструмента
+    instrument = await Instrument.get_or_none(ticker=deposit_data.ticker)
+    if not instrument:
+        raise HTTPException(
+            status_code=404,
+            detail="Instrument not found"
+        )
+
+    # Проверяем сумму (должна быть положительной)
+    if deposit_data.amount <= 0:
+        raise HTTPException(
+            status_code=422,
+            detail="Amount must be positive"
+        )
+
+    # Обновляем баланс (или создаем новую запись)
+    balance, created = await Balance.get_or_create(
+        user=user,
+        instrument=instrument,
+        defaults={"amount": deposit_data.amount}
+    )
+    
+    if not created:
+        balance.amount += deposit_data.amount
+        await balance.save()
+
+    return {"success": True}
