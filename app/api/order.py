@@ -2,7 +2,10 @@ from fastapi import APIRouter, Header, HTTPException
 from app.services.auth import get_user_by_token
 from app.models.order import Order
 from app.models.instrument import Instrument
-from app.schemas.order import OrderCreate, OrderResponse, OrderListResponse, OrderListItem, OrderBody
+from app.schemas.order import (
+    OrderCreate, OrderResponse, OrderListResponse, 
+    OrderListItem, OrderBody, OrderDetailResponse
+)
 import uuid
 from datetime import datetime
 
@@ -76,4 +79,41 @@ async def get_orders(
             )
         )
     
-    return OrderListResponse(__root__=order_list) 
+    return OrderListResponse(__root__=order_list)
+
+@router.get("/order/{order_id}", response_model=OrderDetailResponse)
+async def get_order(
+    order_id: uuid.UUID,
+    authorization: str = Header(..., alias="Authorization")
+):
+    # Получаем пользователя по токену
+    user = await get_user_by_token(authorization)
+    
+    # Получаем ордер
+    order = await Order.get_or_none(id=order_id).prefetch_related('instrument')
+    if not order:
+        raise HTTPException(
+            status_code=404,
+            detail="Order not found"
+        )
+    
+    # Проверяем, что ордер принадлежит пользователю
+    if order.user_id != user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="Access denied"
+        )
+    
+    return OrderDetailResponse(
+        id=str(order.id),
+        status=order.status,
+        user_id=str(user.id),
+        timestamp=order.created_at,
+        body=OrderBody(
+            direction=order.direction,
+            ticker=order.instrument.ticker,
+            qty=order.quantity,
+            price=order.price
+        ),
+        filled=0  # TODO: Добавить логику подсчета исполненных ордеров
+    ) 
