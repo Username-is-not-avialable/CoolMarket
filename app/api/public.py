@@ -102,11 +102,18 @@ async def get_transactions(
     if not instrument:
         raise HTTPException(status_code=404, detail=f"Instrument {ticker} not found")
     
-    # Get filled orders
-    filled_orders = await Order.filter(
+    # Получаем все ордера с статусом FILLED и нужным тикером
+    orders = await Order.filter(
         status="FILLED",
-        body__ticker=ticker
-    ).order_by("-created_at").limit(limit)
+        body__contains={"ticker": ticker}  # Фильтрация по ticker в JSON
+    ).all()
+
+    # Сортируем по дате создания (новые сначала) и применяем лимит
+    filled_orders = sorted(
+        orders,
+        key=lambda x: x.created_at,
+        reverse=True
+    )[:limit]  # Применяем лимит после сортировки
     
     # Convert to transaction list
     transactions = []
