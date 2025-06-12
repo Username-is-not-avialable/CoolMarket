@@ -4,7 +4,7 @@ from app.models.balance import Balance
 
 router = APIRouter(tags=["balance"])
 
-@router.get("/")
+@router.get("/balance")
 async def get_balances(
     authorization: str = Header(..., alias="Authorization")
 ):
