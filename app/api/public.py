@@ -8,6 +8,7 @@ from app.schemas.orderbook import OrderbookResponse, PriceLevel
 from app.schemas.transaction import TransactionResponse
 from typing import List
 import uuid
+from tortoise.expressions import RawSQL
 
 router = APIRouter(prefix="/public", tags=["public"])
 
@@ -47,10 +48,18 @@ async def get_orderbook(
         raise HTTPException(status_code=404, detail=f"Instrument {ticker} not found")
     
     # Get active orders
-    active_orders = await Order.filter(
+
+    orders = await Order.filter(
         status="NEW",
-        body__ticker=ticker
-    ).order_by("-body__price")
+        body__contains={"ticker": ticker}  # Фильтрация по ticker в JSON
+    ).all()
+
+    # Сортировка по убыванию цены
+    active_orders = sorted(
+        orders,
+        key=lambda x: x.body.get("price", 0),
+        reverse=True
+    )
     
     # Separate buy and sell orders
     bid_levels = {}  # price -> total_qty for buy orders
