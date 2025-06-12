@@ -3,13 +3,13 @@ from app.models.user import User
 from app.models.instrument import Instrument
 from app.models.order import Order
 from app.schemas.user import UserCreate, UserResponse
-from app.schemas.instrument import InstrumentListResponse
+# from app.schemas.instrument import InstrumentListResponse
 from app.schemas.orderbook import OrderbookResponse, PriceLevel
 from app.schemas.transaction import TransactionResponse
 from typing import List
 import uuid
 
-router = APIRouter(tags=["public"])
+router = APIRouter(prefix="/public", tags=["public"])
 
 @router.post("/register", response_model=UserResponse)
 async def register_user(user_data: UserCreate):
@@ -30,11 +30,10 @@ async def register_user(user_data: UserCreate):
         api_key=user.api_key
     )
 
-@router.get("/instrument", response_model=InstrumentListResponse)
-async def list_instruments():
-    """Get list of all instruments"""
-    instruments = await Instrument.all()
-    return InstrumentListResponse(root=instruments)
+@router.get("/instrument")
+async def instrument():
+    instruments = await Instrument.all().values("name", "ticker")
+    return instruments
 
 @router.get("/orderbook/{ticker}", response_model=OrderbookResponse)
 async def get_orderbook(
