@@ -2,7 +2,7 @@ from fastapi import APIRouter, Header, HTTPException, Depends
 from typing import Optional
 from app.models.user import User
 from app.models.balance import Balance
-from app.schemas.balance import Body_deposit_api_v1_admin_balance_deposit_post, BalanceDepositRequest, BalanceWithdrawRequest, BalanceResponse
+from app.schemas.balance import BalanceDepositRequest, BalanceWithdrawRequest
 from app.services.auth import get_user_by_token
 from uuid import UUID
 from app.models.instrument import Instrument
@@ -63,46 +63,127 @@ async def create_instrument(
         raise HTTPException(status_code=400, detail="Instrument with this ticker already exists")
     await Instrument.create(name=instrument.name, ticker=instrument.ticker)
     return {"success": True}
-@router.post("/balance/deposit", response_model=BalanceResponse)
+@router.post("/balance/deposit")
 async def deposit_balance(
-    request: BalanceDepositRequest,
-    admin: User = Depends(verify_admin)
+    deposit_data: BalanceDepositRequest,
+    authorization: str = Header(None, alias="Authorization"),
 ):
-    """Deposit funds to user's balance"""
-    user = await User.get_or_none(id=request.user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    """
+    Пополнение баланса пользователя (только для администраторов)
     
-    balance = await Balance.get_or_create(user_id=request.user_id)
-    balance.amount += request.amount
-    await balance.save()
-    
-    return BalanceResponse(
-        user_id=balance.user_id,
-        amount=balance.amount
-    )
+    Требуемые параметры:
+    - user_id: UUID пользователя
+    - ticker: Тикер инструмента (например, "MEMCOIN")
+    - amount: Сумма пополнения (целое число > 0)
+    """
+    # Проверяем авторизацию и права администратора
+    admin_user = await get_user_by_token(authorization)
+    if admin_user.role != "ADMIN":
+        raise HTTPException(
+            status_code=403,
+            detail="Only admin users can perform this action"
+        )
 
-@router.post("/balance/withdraw", response_model=BalanceResponse)
-async def withdraw_balance(
-    request: BalanceWithdrawRequest,
-    admin: User = Depends(verify_admin)
-):
-    """Withdraw funds from user's balance"""
-    user = await User.get_or_none(id=request.user_id)
+    # Проверяем существование пользователя
+    user = await User.get_or_none(id=deposit_data.user_id)
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    balance = await Balance.get_or_none(user_id=request.user_id)
-    if not balance:
-        raise HTTPException(status_code=404, detail="Balance not found")
-    
-    if balance.amount < request.amount:
-        raise HTTPException(status_code=400, detail="Insufficient funds")
-    
-    balance.amount -= request.amount
-    await balance.save()
-    
-    return BalanceResponse(
-        user_id=balance.user_id,
-        amount=balance.amount
+        raise HTTPException(
+            status_code=404,
+            detail="User not found"
+        )
+
+    # Проверяем существование инструмента
+    instrument = await Instrument.get_or_none(ticker=deposit_data.ticker)
+    if not instrument:
+        raise HTTPException(
+            status_code=404,
+            detail="Instrument not found"
+        )
+
+    # Проверяем сумму (должна быть положительной)
+    if deposit_data.amount <= 0:
+        raise HTTPException(
+            status_code=422,
+            detail="Amount must be positive"
+        )
+
+    # Обновляем баланс (или создаем новую запись)
+    balance, created = await Balance.get_or_create(
+        user=user,
+        instrument=instrument,
+        defaults={"amount": deposit_data.amount}
     )
+    
+    if not created:
+        balance.amount += deposit_data.amount
+        await balance.save()
+
+    return {"success": True}
+
+@router.post("/balance/withdraw")
+async def withdraw_balance(
+    withdraw_data: BalanceWithdrawRequest,
+    authorization: str = Header(None, alias="Authorization"),
+):
+    """
+    Списание средств с баланса пользователя (только для администраторов)
+    
+    Требуемые параметры:
+    - user_id: UUID пользователя
+    - ticker: Тикер инструмента (например, "MEMCOIN")
+    - amount: Сумма списания (целое число > 0)
+    """
+    # Проверяем авторизацию и права администратора
+    admin_user = await get_user_by_token(authorization)
+    if admin_user.role != "ADMIN":
+        raise HTTPException(
+            status_code=403,
+            detail="Only admin users can perform this action"
+        )
+
+    # Проверяем существование пользователя
+    user = await User.get_or_none(id=withdraw_data.user_id)
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail="User not found"
+        )
+
+    # Проверяем существование инструмента
+    instrument = await Instrument.get_or_none(ticker=withdraw_data.ticker)
+    if not instrument:
+        raise HTTPException(
+            status_code=404,
+            detail="Instrument not found"
+        )
+
+    # Проверяем сумму (должна быть положительной)
+    if withdraw_data.amount <= 0:
+        raise HTTPException(
+            status_code=422,
+            detail="Amount must be positive"
+        )
+
+    # Проверка существования баланса пользователя
+    balance = await Balance.get_or_none(
+        user=user,
+        instrument=instrument
+    )
+    
+    # Если баланса нет или средств недостаточно
+    if not balance or balance.amount < withdraw_data.amount:
+        current_balance = balance.amount if balance else 0
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": "Insufficient funds",
+                "current_balance": current_balance,
+                "required": withdraw_data.amount
+            }
+        )
+
+    # Списание средств
+    balance.amount -= withdraw_data.amount
+    await balance.save()
+
+    return {"success": True}
