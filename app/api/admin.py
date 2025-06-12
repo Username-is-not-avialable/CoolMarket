@@ -2,7 +2,8 @@ from fastapi import APIRouter, Header, HTTPException
 from app.models.balance import Balance
 from app.models.instrument import Instrument
 from app.models.user import User
-from app.schemas.balance import Body_deposit_api_v1_admin_balance_deposit_post
+from app.schemas.balance import (Body_deposit_api_v1_admin_balance_deposit_post,
+                                 Body_withdraw_api_v1_admin_balance_withdraw_post)
 from app.services.auth import get_user_by_token
 from uuid import UUID
 
@@ -32,6 +33,74 @@ async def delete_user(
             detail="User not found"
         )
     
+    return {"success": True}
+
+@router.post("/balance/withdraw")
+async def withdraw_balance(
+    withdraw_data: Body_withdraw_api_v1_admin_balance_withdraw_post,
+    authorization: str = Header(None, alias="Authorization"),
+):
+    """
+    Списание средств с баланса пользователя (только для администраторов)
+    
+    Требуемые параметры:
+    - user_id: UUID пользователя
+    - ticker: Тикер инструмента (например, "MEMCOIN")
+    - amount: Сумма списания (целое число > 0)
+    """
+    # Проверяем авторизацию и права администратора
+    admin_user = await get_user_by_token(authorization)
+    if admin_user.role != "ADMIN":
+        raise HTTPException(
+            status_code=403,
+            detail="Only admin users can perform this action"
+        )
+
+    # Проверяем существование пользователя
+    user = await User.get_or_none(id=withdraw_data.user_id)
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail="User not found"
+        )
+
+    # Проверяем существование инструмента
+    instrument = await Instrument.get_or_none(ticker=withdraw_data.ticker)
+    if not instrument:
+        raise HTTPException(
+            status_code=404,
+            detail="Instrument not found"
+        )
+
+    # Проверяем сумму (должна быть положительной)
+    if withdraw_data.amount <= 0:
+        raise HTTPException(
+            status_code=422,
+            detail="Amount must be positive"
+        )
+
+    # Проверка существования баланса пользователя
+    balance = await Balance.get_or_none(
+        user=user,
+        instrument=instrument
+    )
+    
+    # Если баланса нет или средств недостаточно
+    if not balance or balance.amount < withdraw_data.amount:
+        current_balance = balance.amount if balance else 0
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": "Insufficient funds",
+                "current_balance": current_balance,
+                "required": withdraw_data.amount
+            }
+        )
+
+    # Списание средств
+    balance.amount -= withdraw_data.amount
+    await balance.save()
+
     return {"success": True}
 
 @router.post("/balance/deposit")
