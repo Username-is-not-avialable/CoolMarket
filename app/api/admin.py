@@ -1,9 +1,11 @@
+from typing import Optional
 from fastapi import APIRouter, Header, HTTPException
 from app.models.balance import Balance
 from app.models.instrument import Instrument
 from app.models.user import User
 from app.schemas.balance import (Body_deposit_api_v1_admin_balance_deposit_post,
                                  Body_withdraw_api_v1_admin_balance_withdraw_post)
+from app.schemas.schemas import Instrument_schema
 from app.services.auth import get_user_by_token
 from uuid import UUID
 
@@ -159,3 +161,50 @@ async def deposit_balance(
         await balance.save()
 
     return {"success": True}
+
+@router.post("/instrument")
+async def add_instrument(
+    instrument_data: Instrument_schema,
+    authorization: Optional[str] = Header(None, alias="Authorization"),
+):
+    """
+    Добавление нового инструмента (только для администраторов)
+    
+    Args:
+        instrument_data: Данные инструмента (name и ticker)
+        authorization: Токен авторизации в заголовке
+        
+    Returns:
+        dict: {"success": True} при успешном добавлении
+        
+    Raises:
+        HTTPException: 403 - если пользователь не администратор
+        HTTPException: 409 - если инструмент с таким тикером уже существует
+    """
+    # Проверяем токен и получаем пользователя
+    admin_user = await get_user_by_token(authorization)
+    
+    # Проверяем, что пользователь - администратор
+    if admin_user.role != "ADMIN":
+        raise HTTPException(
+            status_code=403,
+            detail="Only admin users can perform this action"
+        )
+    
+    # Проверяем, не существует ли уже инструмент с таким тикером
+    existing_instrument = await Instrument.get_or_none(ticker=instrument_data.ticker)
+    if existing_instrument:
+        raise HTTPException(
+            status_code=409,
+            detail="Instrument with this ticker already exists"
+        )
+    
+    # Создаем новый инструмент
+    new_instrument = await Instrument.create(
+        name=instrument_data.name,
+        ticker=instrument_data.ticker,
+        is_active=True
+    )
+    
+    return {"success": True}
+
