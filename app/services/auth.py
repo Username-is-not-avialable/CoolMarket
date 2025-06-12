@@ -5,6 +5,11 @@ async def get_user_by_token(
     authorization: str = Header(..., alias="Authorization")
 ) -> User:
     """Проверка токена и получение объекта пользователя."""
+    if not authorization:
+        raise HTTPException(
+            status_code=422,
+            detail="Отсутствие токена"
+        )
     if not authorization.startswith("TOKEN "):
         raise HTTPException(
             status_code=401,
@@ -17,7 +22,7 @@ async def get_user_by_token(
     if not user:
         raise HTTPException(
             status_code=403,
-            detail="Неверный токен"
+            detail="Нет пользователя с таким токеном"
         )
     
     return user

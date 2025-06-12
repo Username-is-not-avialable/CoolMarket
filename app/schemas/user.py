@@ -10,7 +10,3 @@ class UserCreate(BaseModel):
         if len(v.strip()) < 3:
             raise ValueError("Никнейм слишком короткий")
         return v
-
-class InstrumentCreate(BaseModel):
-    ticker: str
-    name: str
