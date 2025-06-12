@@ -3,11 +3,16 @@ from app.core.config import settings
 from dotenv import load_dotenv
 from os import getenv
 
-user = getenv("DB_USER")
-password = getenv("DB_PASSWORD")
+load_dotenv()
+DB_USER = getenv("DB_USER")
+DB_PASSWORD = getenv("DB_PASSWORD")
+DB_HOST = getenv("DB_HOST")
+DB_PORT = getenv("DB_PORT")
+DB_NAME = getenv("DB_NAME")
+
 TORTOISE_ORM = {
     "connections": {
-        "default": f"postgres://{user}:{password}@localhost:5432/market"
+        "default": f"postgres://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
     },
     "apps": {
         "models": {
