@@ -2,7 +2,7 @@ from fastapi import APIRouter, Header, HTTPException
 from app.services.auth import get_user_by_token
 from app.models.balance import Balance
 
-router = APIRouter()
+router = APIRouter(tags=["balance"])
 
 @router.get("/")
 async def get_balances(

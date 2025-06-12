@@ -22,7 +22,7 @@ class OrderCreateRequest(BaseModel):
         description="Quantity of the order",
         examples=[1, 10, 100]
     )
-    price: Optional[int] = Field(
+    price: Optional[float] = Field(
         None,
         gt=0,
         description="Price of the order (optional for market orders)",
@@ -41,13 +41,13 @@ class OrderBodyResponse(BaseModel):
     direction: str
     ticker: str
     qty: int
-    price: Optional[int] = None
+    price: Optional[float] = None
 
 class OrderDetailResponse(BaseModel):
     """Схема для детальной информации об ордере"""
     id: str
     status: str
-    user_id: str
+    user_id: UUID
     timestamp: datetime
     body: OrderBodyResponse
     filled: int = 0

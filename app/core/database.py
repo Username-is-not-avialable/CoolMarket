@@ -3,7 +3,7 @@ from app.core.config import settings
 
 TORTOISE_ORM = {
     "connections": {
-        "default": "postgres://market_user:1234@localhost:5432/coolmarket"
+        "default": "postgres://market_user:1234@localhost:5432/market"
     },
     "apps": {
         "models": {
