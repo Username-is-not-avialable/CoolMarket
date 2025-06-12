@@ -59,7 +59,7 @@ async def create_instrument(
         raise HTTPException(status_code=403, detail="Admin access required")
     # Проверяем, что тикер уникален
     exists = await Instrument.get_or_none(ticker=instrument.ticker)
-    if exists:
+    if exists:  
         raise HTTPException(status_code=400, detail="Instrument with this ticker already exists")
     await Instrument.create(name=instrument.name, ticker=instrument.ticker)
     return {"success": True}
@@ -186,4 +186,38 @@ async def withdraw_balance(
     balance.amount -= withdraw_data.amount
     await balance.save()
 
+    return {"success": True}
+
+@router.delete("/instrument/{ticker}", response_model=dict)
+async def delete_instrument(
+    ticker: str,
+    authorization: str = Header(..., alias="Authorization")
+):
+    """
+    Удаление инструмента по тикеру (только для администраторов)
+    
+    Параметры:
+    - ticker: Тикер инструмента (например "BTC")
+    - authorization: Токен авторизации в заголовке
+    
+    Возвращает:
+    - {"success": true} при успешном удалении
+    """
+    # Проверяем права администратора
+    admin_user = await get_user_by_token(authorization)
+    if admin_user.role != "ADMIN":
+        raise HTTPException(
+            status_code=403,
+            detail="Admin access required"
+        )
+    
+    # Ищем и удаляем инструмент
+    deleted_count = await Instrument.filter(ticker=ticker).delete()
+    
+    if not deleted_count:
+        raise HTTPException(
+            status_code=404,
+            detail="Instrument not found"
+        )
+    
     return {"success": True}
