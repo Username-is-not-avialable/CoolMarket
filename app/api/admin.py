@@ -48,13 +48,6 @@ async def delete_user(
     
     return {"success": True}
 
-@router.delete("/user/")
-async def delete_user(
-    user_id: str,
-    authorization: str = Header(..., alias="Authorization"),
-):
-    print("passed")
-
 @router.post("/instrument")
 async def create_instrument(
     instrument: InstrumentCreate,
