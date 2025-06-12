@@ -6,7 +6,7 @@ from app.schemas.balance import Body_deposit_api_v1_admin_balance_deposit_post, 
 from app.services.auth import get_user_by_token
 from uuid import UUID
 from app.models.instrument import Instrument
-from app.schemas.instrument import InstrumentCreate, InstrumentResponse
+from app.schemas.instrument import InstrumentCreate
 
 router = APIRouter(prefix="/admin",tags=["admin"])
 
@@ -55,12 +55,13 @@ async def delete_user(
 ):
     print("passed")
 
-@router.post("/instrument", response_model=InstrumentResponse)
+@router.post("/instrument")
 async def create_instrument(
     instrument: InstrumentCreate,
     authorization: str = Header(..., alias="Authorization")
 ):
     admin_user = await get_user_by_token(authorization)
+    print(admin_user.role)
     if admin_user.role != "ADMIN":
         raise HTTPException(status_code=403, detail="Admin access required")
     # Проверяем, что тикер уникален
@@ -68,7 +69,7 @@ async def create_instrument(
     if exists:
         raise HTTPException(status_code=400, detail="Instrument with this ticker already exists")
     await Instrument.create(name=instrument.name, ticker=instrument.ticker)
-    return InstrumentResponse(success=True)
+    return {"success": True}
 @router.post("/balance/deposit", response_model=BalanceResponse)
 async def deposit_balance(
     request: BalanceDepositRequest,
