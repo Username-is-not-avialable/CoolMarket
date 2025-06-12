@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, HTTPException, Header
 from typing import Optional
 from uuid import UUID
 from datetime import datetime
@@ -15,40 +15,35 @@ from app.schemas.order import (
     OrderBodyResponse
 )
 
-router = APIRouter()
+router = APIRouter(prefix="/order", tags=["order"])
 
-@router.post("/order", response_model=OrderCreateResponse)
-async def create_order(
-    order: OrderCreateRequest,
-    authorization: str = Header(...)
-):
+@router.post("", response_model=OrderCreateResponse)
+async def create_order(order: OrderCreateRequest, authorization: Optional[str] = Header(None)):
     """Create a new order"""
-    # Get user from token
-    user = await User.get_by_token(authorization)
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Authorization header is missing")
+    
+    # Remove 'TOKEN ' prefix if present
+    token = authorization.replace('TOKEN ', '') if authorization.startswith('TOKEN ') else authorization
+    
+    user = await User.get_by_token(token)
     if not user:
-        raise HTTPException(status_code=401, detail="Invalid token")
-
-    # Check if instrument exists and is active
+        raise HTTPException(status_code=401, detail="Invalid API key")
+    
+    # Check if instrument exists
     instrument = await Instrument.get_by_ticker(order.ticker)
     if not instrument:
-        raise HTTPException(status_code=404, detail="Instrument not found")
-    if instrument.status != "ACTIVE":
-        raise HTTPException(status_code=400, detail="Instrument is not active")
-
-    # Create order
-    order_data = {
-        "user_id": str(user.id),
-        "status": "NEW",
-        "body": {
-            "direction": order.direction,
-            "ticker": order.ticker,
-            "qty": order.qty,
-            "price": order.price
-        }
-    }
-    new_order = await Order.create(**order_data)
+        raise HTTPException(status_code=404, detail=f"Instrument {order.ticker} not found")
     
-    return OrderCreateResponse(order_id=str(new_order.id))
+    # Create order
+    order_obj = await Order.create(
+        user_id=user.id,
+        status="NEW",
+        body=order.model_dump(),
+        filled=0
+    )
+    
+    return OrderCreateResponse(order_id=str(order_obj.id))
 
 @router.get("/order", response_model=OrderListResponse)
 async def get_orders(authorization: str = Header(...)):
@@ -90,7 +85,7 @@ async def get_order(order_id: UUID, authorization: str = Header(...)):
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     
-    # Check if order belongs to user
+# Check if order belongs to user
     if order.user_id != str(user.id):
         raise HTTPException(status_code=403, detail="Access denied")
     
@@ -127,4 +122,4 @@ async def delete_order(order_id: UUID, authorization: str = Header(...)):
     # Delete order
     await order.delete()
     
-    return OrderDeleteResponse() 
+    return OrderDeleteResponse()

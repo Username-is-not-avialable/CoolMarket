@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, UUID4
 
 class UserCreate(BaseModel):
     name: str = Field(..., min_length=3, max_length=20, 
@@ -14,3 +14,8 @@ class UserCreate(BaseModel):
 class InstrumentCreate(BaseModel):
     ticker: str
     name: str
+
+class UserResponse(BaseModel):
+    id: UUID4
+    name: str
+    api_key: str

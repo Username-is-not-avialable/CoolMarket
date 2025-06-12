@@ -1,15 +1,13 @@
-from tortoise.models import Model
-from tortoise import fields
+from tortoise import fields, models
 from datetime import datetime
+import uuid
 
-class Order(Model):
-    id = fields.UUIDField(pk=True)
-    user = fields.ForeignKeyField("models.User", related_name="orders")
-    instrument = fields.ForeignKeyField("models.Instrument", related_name="orders")
-    direction = fields.CharField(max_length=4)  # "BUY" или "SELL"
-    price = fields.IntField(null=True)  # NULL для рыночных ордеров
-    quantity = fields.IntField()
+class Order(models.Model):
+    id = fields.UUIDField(pk=True, default=uuid.uuid4)
+    user_id = fields.UUIDField()
     status = fields.CharField(max_length=20, default="NEW")
+    body = fields.JSONField()
+    filled = fields.IntField(default=0)
     created_at = fields.DatetimeField(auto_now_add=True)
 
     class Meta:
