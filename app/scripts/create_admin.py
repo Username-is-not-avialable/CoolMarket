@@ -7,7 +7,7 @@ sys.path.append(str(Path(__file__).parent.parent.parent))
 print(sys.path)
 
 from app.models.user import User
-from app.services.db import init_db
+from app.core.database import init_db
 from app.services.api_key import generate_api_key
 
 async def create_admin_account():
@@ -23,7 +23,7 @@ async def create_admin_account():
     admin = await User.create(
         name="admin",
         role="ADMIN",
-        api_key=generate_api_key()
+        api_key="3Ee0eiifWB8o6bcuJ9VJijYNRvSTyiNX"
     )
     
     print("Админ создан:\n"
