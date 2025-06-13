@@ -3,18 +3,22 @@ from typing import Optional, List
 from uuid import UUID
 from datetime import datetime
 from fastapi.security import APIKeyHeader
-
+from tortoise.exceptions import IntegrityError
 from app.models.order import Order
 from app.models.instrument import Instrument
 from app.models.user import User
 from app.schemas.order import (
+    MarketOrderBody,
     OrderCreateRequest,
     OrderCreateResponse,
     OrderDetailResponse,
     OrderListResponse,
     OrderDeleteResponse,
-    OrderBodyResponse
+    OrderBodyResponse,
+    OrderStatus,
+    OrderType
 )
+from app.services.orderService import OrderService
 
 router = APIRouter(prefix="/order", tags=["order"])
 
@@ -34,24 +38,49 @@ async def get_current_user(authorization: str = Security(api_key_header)):
 
 @router.post("", response_model=OrderCreateResponse)
 async def create_order(
-    order: OrderCreateRequest,
+    order_data: OrderCreateRequest,  # Теперь принимает плоскую структуру
     user: User = Depends(get_current_user)
 ):
-    """Create a new order"""
-    # Check if instrument exists
-    instrument = await Instrument.get_by_ticker(order.ticker)
-    if not instrument:
-        raise HTTPException(status_code=404, detail=f"Instrument {order.ticker} not found")
+    """
+    Create a new order (market or limit)
     
-    # Create order with explicit UUID conversion
-    order_obj = await Order.create(
-        user_id=user.id,  # user.id is already UUID
-        status="NEW",
-        body=order.model_dump(),
-        filled=0
-    )
-    
-    return OrderCreateResponse(order_id=str(order_obj.id))
+    - For limit orders: locks funds immediately
+    - For market orders: tries to execute immediately or rejects
+    """
+    try:
+        # Определяем тип ордера по наличию цены
+        is_market = order_data.price is None
+        
+        # Формируем данные для OrderService
+        order_dict = {
+            **order_data.model_dump(),
+            "user_id": user.id,
+            "status": OrderStatus.NEW,
+            "filled": 0,
+            "is_market": is_market,
+            "order_type": OrderType.MARKET if is_market else OrderType.LIMIT
+        }
+
+        # Обрабатываем ордер
+        created_order = await OrderService.create_order(order_dict)
+        
+        # Для рыночных ордеров - проверяем результат исполнения
+        if is_market and created_order.status == OrderStatus.REJECTED:
+            raise HTTPException(
+                status_code=400,
+                detail="Market order rejected: no matching orders available"
+            )
+            
+        return OrderCreateResponse(
+            order_id=str(created_order.id),
+            status=created_order.status,
+            filled=created_order.filled
+        )
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except IntegrityError:
+        raise HTTPException(status_code=400, detail="Order creation failed")
 
 @router.get("", response_model=List[OrderDetailResponse])
 async def get_orders(user: User = Depends(get_current_user)):

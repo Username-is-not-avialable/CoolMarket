@@ -1,12 +1,31 @@
-from pydantic import BaseModel, Field, field_validator, RootModel
-from typing import Optional, List
+from pydantic import BaseModel, Field, ValidationError, field_validator, RootModel, model_validator
+from typing import Literal, Optional, List, Union
 from datetime import datetime
 from uuid import UUID
+from enum import Enum
 
-# Request schemas
-class OrderCreateRequest(BaseModel):
-    """Схема для создания нового ордера"""
-    direction: str = Field(
+class OrderDirection(str, Enum):
+    BUY = "BUY"
+    SELL = "SELL"
+
+class OrderType(str, Enum):
+    LIMIT = "LIMIT"
+    MARKET = "MARKET"
+
+class OrderStatus(str, Enum):
+    NEW = "NEW"
+    PARTIALLY_FILLED = "PARTIALLY_FILLED"
+    FILLED = "FILLED"
+    CANCELLED = "CANCELLED"
+    REJECTED = "REJECTED"
+
+class Direction(str, Enum):
+    BUY = "BUY"
+    SELL = "SELL"
+
+class LimitOrderBody(BaseModel):
+    """Схема для лимитного ордера"""
+    direction: Direction = Field(
         ...,
         description="Direction of the order (BUY or SELL)",
         examples=["BUY", "SELL"]
@@ -14,7 +33,9 @@ class OrderCreateRequest(BaseModel):
     ticker: str = Field(
         ...,
         description="Ticker symbol of the instrument",
-        examples=["BTC", "ETH"]
+        examples=["BTC", "ETH"],
+        min_length=2,
+        max_length=10
     )
     qty: int = Field(
         ...,
@@ -22,18 +43,47 @@ class OrderCreateRequest(BaseModel):
         description="Quantity of the order",
         examples=[1, 10, 100]
     )
-    price: Optional[float] = Field(
-        None,
+    price: int = Field(
+        ...,
         gt=0,
-        description="Price of the order (optional for market orders)",
+        description="Price of the order",
         examples=[50000, 3000]
     )
 
-    @field_validator('direction')
-    def validate_direction(cls, v):
-        if v not in ["BUY", "SELL"]:
-            raise ValueError("Direction must be either 'BUY' or 'SELL'")
-        return v
+class MarketOrderBody(BaseModel):
+    """Схема для рыночного ордера"""
+    direction: Direction = Field(
+        ...,
+        description="Direction of the order (BUY or SELL)",
+        examples=["BUY", "SELL"]
+    )
+    ticker: str = Field(
+        ...,
+        description="Ticker symbol of the instrument",
+        examples=["BTC", "ETH"],
+        min_length=2,
+        max_length=10
+    )
+    qty: int = Field(
+        ...,
+        gt=0,
+        description="Quantity of the order",
+        examples=[1, 10, 100]
+    )
+
+class OrderCreateRequest(BaseModel):
+    # Заменяем Union на ручную валидацию
+    direction: Direction
+    ticker: str
+    qty: int
+    price: Optional[int] = None  # Для рыночных ордеров
+
+    @model_validator(mode='after')
+    def validate_order(self):
+        if self.price is not None:
+            # Валидируем как LimitOrderBody
+            return LimitOrderBody.model_validate(self.model_dump())
+        return MarketOrderBody.model_validate(self.model_dump())
 
 # Response schemas
 class OrderBodyResponse(BaseModel):

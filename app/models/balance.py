@@ -5,6 +5,7 @@ class Balance(Model):
     user = fields.ForeignKeyField("models.User", related_name="balances")
     instrument = fields.ForeignKeyField("models.Instrument", related_name="balances")
     amount = fields.BigIntField(default=0)  # Используем BigInt для избежания переполнения
+    locked = fields.BigIntField(default=0)
 
     class Meta:
         table = "balances"

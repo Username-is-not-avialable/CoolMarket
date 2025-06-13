@@ -12,11 +12,11 @@ DB_NAME = getenv("DB_NAME")
 
 TORTOISE_ORM = {
     "connections": {
-        "default": f"postgres://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+        "default": f"postgres://{DB_USER}:1234@localhost:5432/market"
     },
     "apps": {
         "models": {
-            "models": ["app.models.user", "app.models.order", "app.models.instrument", "app.models.balance"],
+            "models": ["app.models.user", "app.models.order", "app.models.instrument", "app.models.balance", "aerich.models"],
             "default_connection": "default",
         },
     },
